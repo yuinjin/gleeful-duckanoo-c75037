@@ -137,6 +137,26 @@
     transition: border-color 0.15s; margin-bottom: 16px;
   }
   .phone-input:focus { outline: none; border-color: #0B4DA2; }
+  .text-input {
+    width: 100%; padding: 18px 20px; font-size: 20px; font-weight: 500;
+    border: 2px solid #e0e0e0; border-radius: 14px;
+    text-align: left; font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .text-input:focus { outline: none; border-color: #0B4DA2; }
+  .info-box {
+    background: #f5f6f8; padding: 14px 18px; border-radius: 12px;
+    margin-bottom: 16px; text-align: left;
+  }
+  .info-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .info-value { font-weight: 700; font-size: 18px; color: #1a1a1a; }
+  .welcome-banner {
+    background: linear-gradient(135deg, #FFF8C5, #FFE066);
+    border-radius: 14px; padding: 12px 20px;
+    margin-bottom: 20px; font-size: 15px; color: #5C4A00;
+    text-align: center; font-weight: 600;
+  }
+  .welcome-banner strong { color: #1a1a1a; }
   .phone-error { color: #d32f2f; font-size: 14px; margin-bottom: 16px; min-height: 20px; }
   .phone-actions { display: flex; gap: 12px; }
   .phone-actions button { flex: 1; padding: 18px; border-radius: 14px; font-weight: 700; font-size: 17px; cursor: pointer; font-family: inherit; border: none; }
@@ -346,10 +366,52 @@
   <button class="admin-btn" onclick="openAdminPrompt()">관리자</button>
 </div>
 
+<!-- ===== ATTENDANCE CHECK SCREEN (FIRST) ===== -->
+<section id="attendance-screen" class="screen active">
+  <div class="phone-card">
+    <h1>출석 인증</h1>
+    <p class="subtitle">휴대폰 번호를 입력해 주세요<br>사전신청자는 자동 인증됩니다</p>
+    <input
+      type="tel"
+      class="phone-input"
+      id="att-phone-input"
+      placeholder="010-0000-0000"
+      maxlength="13"
+      inputmode="numeric"
+      autocomplete="off"
+    >
+    <div class="phone-error" id="att-error"></div>
+    <div class="phone-actions">
+      <button class="btn-primary" id="att-submit" onclick="verifyAttendance()" style="flex:1;">다음</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== WALK-IN REGISTRATION SCREEN ===== -->
+<section id="walkin-screen" class="screen">
+  <div class="phone-card">
+    <div class="selected-tag" style="background:#0B4DA2; color:#fff;">현장 신청</div>
+    <h1>처음 오셨네요!</h1>
+    <p class="subtitle">사전신청 명단에 없으셔서<br>간단한 정보를 입력해 주세요</p>
+    <div class="info-box">
+      <div class="info-label">휴대폰 번호</div>
+      <div class="info-value" id="walkin-phone-display">010-0000-0000</div>
+    </div>
+    <input type="text" class="text-input" id="walkin-name" placeholder="이름" maxlength="20">
+    <div style="height:12px;"></div>
+    <input type="text" class="text-input" id="walkin-academy" placeholder="소속 학원명" maxlength="40">
+    <div class="phone-error" id="walkin-error"></div>
+    <div class="phone-actions">
+      <button class="btn-secondary" onclick="goHome()">이전</button>
+      <button class="btn-primary" id="walkin-submit" onclick="submitWalkin()">다음</button>
+    </div>
+  </div>
+</section>
+
 <!-- ===== SELECTION SCREEN ===== -->
-<section id="selection-screen" class="screen active">
+<section id="selection-screen" class="screen">
   <div class="selection-header">
-    <h1>참여하실 강연을 선택해 주세요</h1>
+    <h1 id="selection-title">참여하실 강연을 선택해 주세요</h1>
     <p>선택하신 강연에 따라 띠지를 안내해 드립니다</p>
   </div>
   <div class="options">
@@ -385,29 +447,6 @@
       </div>
       <div class="arrow">→</div>
     </button>
-  </div>
-</section>
-
-<!-- ===== PHONE INPUT SCREEN ===== -->
-<section id="phone-screen" class="screen">
-  <div class="phone-card">
-    <div class="selected-tag" id="phone-selected-tag">강연 1부</div>
-    <h1>휴대폰 번호를 입력해 주세요</h1>
-    <p class="subtitle">행사 안내 및 본인 확인을 위해 사용됩니다</p>
-    <input
-      type="tel"
-      class="phone-input"
-      id="phone-input"
-      placeholder="010-0000-0000"
-      maxlength="13"
-      inputmode="numeric"
-      autocomplete="off"
-    >
-    <div class="phone-error" id="phone-error"></div>
-    <div class="phone-actions">
-      <button class="btn-secondary" onclick="goHome()">취소</button>
-      <button class="btn-primary" id="phone-submit" onclick="submitEntry()">신청하기</button>
-    </div>
   </div>
 </section>
 
@@ -480,7 +519,7 @@
   <!-- 참가자 명단 탭 -->
   <div class="admin-panel" id="panel-entries">
     <div class="toolbar">
-      <input type="text" id="search-input" placeholder="번호 또는 휴대폰 번호로 검색" oninput="renderEntries()">
+      <input type="text" id="search-input" placeholder="번호·이름·학원명·휴대폰으로 검색" oninput="renderEntries()">
       <div class="filter-btns">
         <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">전체</button>
         <button class="filter-btn" data-filter="part1" onclick="setFilter('part1')">1부</button>
@@ -495,15 +534,18 @@
       <table class="log-table">
         <thead>
           <tr>
-            <th style="width:80px;">번호</th>
-            <th style="width:100px;">구분</th>
-            <th>휴대폰</th>
-            <th style="width:140px;">시간</th>
-            <th style="width:100px;">관리</th>
+            <th style="width:70px;">번호</th>
+            <th style="width:80px;">구분</th>
+            <th style="width:90px;">이름</th>
+            <th>학원명</th>
+            <th style="width:130px;">휴대폰</th>
+            <th style="width:70px;">출처</th>
+            <th style="width:80px;">시간</th>
+            <th style="width:90px;">관리</th>
           </tr>
         </thead>
         <tbody id="log-body">
-          <tr><td colspan="5" style="text-align:center; color:#999; padding:32px;">데이터 로딩 중…</td></tr>
+          <tr><td colspan="8" style="text-align:center; color:#999; padding:32px;">데이터 로딩 중…</td></tr>
         </tbody>
       </table>
     </div>
@@ -566,6 +608,11 @@ const DB_PATH = 'route26_2026';
 // 관리자 비밀번호 (꼭 변경하세요)
 const ADMIN_PW = '2026';
 
+// Google Apps Script Web App URL (사전신청자 명단 조회용)
+// 배포 가이드: SHEET_GUIDE.md 참고
+// 비워두면 모든 참가자가 현장신청으로 처리됩니다
+const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycb..../exec';
+
 // 옵션별 정원 / 번호 범위
 const CAPACITY = { part1: 150, part2: 150, none: 300 };
 const NUMBER_RANGE = {
@@ -614,6 +661,7 @@ const db = getDatabase(app);
 const dataRef = ref(db, DB_PATH);
 
 let currentChoice = null;
+let currentAttendee = null; // { phone, name, academy, source: 'preregistered'|'walkin' }
 let countdownTimer = null;
 let entries = []; // 실시간 캐시
 let counts = { part1: 0, part2: 0, none: 0 };
@@ -630,72 +678,194 @@ function showScreen(id) {
 window.goHome = function() {
   clearInterval(countdownTimer);
   document.body.classList.remove('admin-active');
-  showScreen('selection-screen');
+  // 입력 초기화
+  document.getElementById('att-phone-input').value = '';
+  document.getElementById('att-error').textContent = '';
+  const attBtn = document.getElementById('att-submit');
+  attBtn.disabled = false;
+  attBtn.textContent = '다음';
+  // 옵션 버튼 활성화 복구
+  document.querySelectorAll('.option').forEach(b => b.disabled = false);
+  showScreen('attendance-screen');
   currentChoice = null;
+  currentAttendee = null;
+  setTimeout(() => document.getElementById('att-phone-input').focus(), 100);
 };
 
 // ============================================================
-// 옵션 선택 → 휴대폰 입력 화면
+// 휴대폰 자동 포맷 헬퍼
 // ============================================================
-window.onChoose = function(type) {
-  if (counts[type] >= CAPACITY[type]) {
-    toast('해당 옵션은 마감되었습니다.', true);
-    return;
-  }
-  currentChoice = type;
-  const lab = LABELS[type];
-  const tag = document.getElementById('phone-selected-tag');
-  tag.textContent = lab.short;
-  tag.style.background =
-    type === 'part1' ? '#FFD60A' :
-    type === 'part2' ? '#7DCAB0' : '#0B4DA2';
-  tag.style.color = type === 'none' ? '#fff' : '#1a1a1a';
-
-  document.getElementById('phone-input').value = '';
-  document.getElementById('phone-error').textContent = '';
-  document.getElementById('phone-submit').disabled = false;
-  showScreen('phone-screen');
-  setTimeout(() => document.getElementById('phone-input').focus(), 100);
-};
-
-// ============================================================
-// 휴대폰 자동 포맷
-// ============================================================
-const phoneInput = document.getElementById('phone-input');
-phoneInput.addEventListener('input', e => {
-  let v = e.target.value.replace(/\D/g, '');
-  if (v.length > 11) v = v.slice(0, 11);
-  if (v.length >= 7) v = v.slice(0, 3) + '-' + v.slice(3, 7) + '-' + v.slice(7);
-  else if (v.length >= 4) v = v.slice(0, 3) + '-' + v.slice(3);
-  e.target.value = v;
+function bindPhoneFormat(inputEl) {
+  inputEl.addEventListener('input', e => {
+    let v = e.target.value.replace(/\D/g, '');
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length >= 7) v = v.slice(0, 3) + '-' + v.slice(3, 7) + '-' + v.slice(7);
+    else if (v.length >= 4) v = v.slice(0, 3) + '-' + v.slice(3);
+    e.target.value = v;
+  });
+}
+const attPhoneInput = document.getElementById('att-phone-input');
+bindPhoneFormat(attPhoneInput);
+attPhoneInput.addEventListener('keypress', e => {
+  if (e.key === 'Enter') verifyAttendance();
 });
-phoneInput.addEventListener('keypress', e => {
-  if (e.key === 'Enter') submitEntry();
+document.getElementById('walkin-academy').addEventListener('keypress', e => {
+  if (e.key === 'Enter') submitWalkin();
 });
 
 function validatePhone(p) {
-  const digits = p.replace(/\D/g, '');
+  const digits = normalizePhone(p);
   if (digits.length !== 10 && digits.length !== 11) return '휴대폰 번호 11자리(또는 10자리)를 입력해 주세요';
   if (!digits.startsWith('01')) return '올바른 휴대폰 번호 형식이 아닙니다';
   return null;
 }
 
+// 휴대폰 번호 정규화 (+82, 하이픈, 공백 모두 처리 → 01XXXXXXXXXX 형식)
+function normalizePhone(p) {
+  let digits = String(p ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('82')) digits = digits.slice(2);
+  if (digits.length === 10 && !digits.startsWith('0')) digits = '0' + digits;
+  return digits;
+}
+
 // ============================================================
-// 신청 처리 — 원자적 번호 할당
+// 출석 인증 — 구글 시트 + Firebase walkins 조회
 // ============================================================
-window.submitEntry = async function() {
-  const phone = phoneInput.value.trim();
+window.verifyAttendance = async function() {
+  const phone = attPhoneInput.value.trim();
   const err = validatePhone(phone);
   if (err) {
-    document.getElementById('phone-error').textContent = err;
+    document.getElementById('att-error').textContent = err;
     return;
   }
-  if (!currentChoice) return;
-
-  const submitBtn = document.getElementById('phone-submit');
+  const submitBtn = document.getElementById('att-submit');
   submitBtn.disabled = true;
-  submitBtn.textContent = '신청 중…';
+  submitBtn.textContent = '확인 중…';
+  document.getElementById('att-error').textContent = '';
 
+  try {
+    // 1) 구글 시트(사전신청 명단) 조회
+    const sheetMatch = await lookupInSheet(phone);
+    // 2) Firebase walkins(다른 기기에서 방금 등록된 현장신청) 조회
+    const walkinMatch = sheetMatch ? null : await lookupInWalkins(phone);
+
+    if (sheetMatch || walkinMatch) {
+      const data = sheetMatch || walkinMatch;
+      currentAttendee = {
+        phone,
+        name: data.name || '참가자',
+        academy: data.academy || '',
+        source: sheetMatch ? 'preregistered' : 'walkin'
+      };
+      proceedToSelection();
+    } else {
+      // 미등록 → 현장신청 화면으로
+      document.getElementById('walkin-phone-display').textContent = phone;
+      document.getElementById('walkin-name').value = '';
+      document.getElementById('walkin-academy').value = '';
+      document.getElementById('walkin-error').textContent = '';
+      const wBtn = document.getElementById('walkin-submit');
+      wBtn.disabled = false;
+      wBtn.textContent = '다음';
+      submitBtn.disabled = false;
+      submitBtn.textContent = '다음';
+      showScreen('walkin-screen');
+      setTimeout(() => document.getElementById('walkin-name').focus(), 100);
+    }
+  } catch (e) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '다음';
+    document.getElementById('att-error').textContent = '명단 조회 실패: ' + (e.message || '네트워크 오류');
+  }
+};
+
+async function lookupInSheet(phone) {
+  if (!SHEET_API_URL) return null; // 시트 미설정 시 → 모든 사람이 현장신청 처리됨
+  const target = normalizePhone(phone);
+  const res = await fetch(SHEET_API_URL, { cache: 'no-store' });
+  if (!res.ok) throw new Error('시트 응답 오류 (' + res.status + ')');
+  const data = await res.json();
+  if (data && data.error) throw new Error(data.error);
+  // Apps Script가 이미 phone을 정규화해서 보내줌
+  for (const row of data) {
+    if (normalizePhone(row.phone) === target) {
+      return { name: row.name || '', academy: row.academy || '' };
+    }
+  }
+  return null;
+}
+
+async function lookupInWalkins(phone) {
+  const target = normalizePhone(phone);
+  try {
+    const snap = await get(ref(db, `${DB_PATH}/walkins`));
+    const data = snap.val() || {};
+    for (const key in data) {
+      const w = data[key];
+      if (normalizePhone(w.phone) === target) {
+        return { name: w.name, academy: w.academy || '' };
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+// ============================================================
+// 현장 신청
+// ============================================================
+window.submitWalkin = async function() {
+  const phone = document.getElementById('walkin-phone-display').textContent;
+  const name = document.getElementById('walkin-name').value.trim();
+  const academy = document.getElementById('walkin-academy').value.trim();
+  if (!name) { document.getElementById('walkin-error').textContent = '이름을 입력해 주세요'; return; }
+  if (!academy) { document.getElementById('walkin-error').textContent = '소속 학원명을 입력해 주세요'; return; }
+
+  const wBtn = document.getElementById('walkin-submit');
+  wBtn.disabled = true;
+  wBtn.textContent = '저장 중…';
+  document.getElementById('walkin-error').textContent = '';
+
+  try {
+    const walkRef = push(ref(db, `${DB_PATH}/walkins`));
+    await set(walkRef, { phone, name, academy, timestamp: Date.now() });
+    currentAttendee = { phone, name, academy, source: 'walkin' };
+    proceedToSelection();
+  } catch (e) {
+    wBtn.disabled = false;
+    wBtn.textContent = '다음';
+    document.getElementById('walkin-error').textContent = '저장 실패: ' + (e.message || '');
+  }
+};
+
+function proceedToSelection() {
+  const greeting = currentAttendee.source === 'preregistered'
+    ? `${currentAttendee.name}님, 환영합니다`
+    : `${currentAttendee.name}님 (현장신청)`;
+  document.getElementById('selection-title').textContent = `${greeting} · 강연을 선택해 주세요`;
+  showScreen('selection-screen');
+}
+
+// ============================================================
+// 강연 선택 → 즉시 번호 발급
+// ============================================================
+window.onChoose = async function(type) {
+  if (counts[type] >= CAPACITY[type]) {
+    toast('해당 옵션은 마감되었습니다.', true);
+    return;
+  }
+  if (!currentAttendee) {
+    toast('출석 인증이 필요합니다', true);
+    goHome();
+    return;
+  }
+  currentChoice = type;
+  document.querySelectorAll('.option').forEach(b => b.disabled = true);
+  await submitEntry();
+};
+
+async function submitEntry() {
+  if (!currentAttendee || !currentChoice) return;
   try {
     // 1) 카운트 원자적 증가
     const countRef = ref(db, `${DB_PATH}/counts/${currentChoice}`);
@@ -710,34 +880,34 @@ window.submitEntry = async function() {
     const seq = tx.snapshot.val();
     const number = NUMBER_RANGE[currentChoice].start + seq - 1;
 
-    // 2) 엔트리 기록
+    // 2) 엔트리 기록 (참가자 정보 포함)
     const entryRef = push(ref(db, `${DB_PATH}/entries`));
     await set(entryRef, {
       type: currentChoice,
       number,
-      phone,
+      phone: currentAttendee.phone,
+      name: currentAttendee.name,
+      academy: currentAttendee.academy || '',
+      source: currentAttendee.source,
       timestamp: Date.now()
     });
 
-    // 3) 확정 화면
     showConfirmation(currentChoice, number);
   } catch (e) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = '신청하기';
-    document.getElementById('phone-error').textContent = e.message || '오류가 발생했습니다';
+    document.querySelectorAll('.option').forEach(b => b.disabled = false);
     toast(e.message || '신청 실패', true);
   }
-};
+}
 
 function showConfirmation(type, number) {
   const lab = LABELS[type];
   document.getElementById('conf-title').textContent = lab.title;
-  document.getElementById('conf-subtitle').textContent = lab.sub;
+  document.getElementById('conf-subtitle').textContent =
+    `${currentAttendee.name}님 · ${lab.sub}`;
   document.getElementById('conf-number').textContent = String(number).padStart(3, '0');
   document.getElementById('conf-band-name').textContent = lab.band;
   document.getElementById('conf-band').className = `band-block ${lab.color}`;
   document.getElementById('conf-detail').innerHTML = lab.detail;
-  document.getElementById('phone-submit').textContent = '신청하기';
   showScreen('confirmation-screen');
   startCountdown(AUTO_RETURN_SEC);
 }
@@ -860,24 +1030,33 @@ window.renderEntries = function() {
   if (currentFilter !== 'all') list = list.filter(e => e.type === currentFilter);
   if (search) {
     const q = search.replace(/\D/g, '');
+    const sLow = search.toLowerCase();
     list = list.filter(e =>
       String(e.number).includes(search) ||
-      (e.phone && e.phone.replace(/\D/g, '').includes(q))
+      (e.phone && e.phone.replace(/\D/g, '').includes(q)) ||
+      (e.name && e.name.toLowerCase().includes(sLow)) ||
+      (e.academy && e.academy.toLowerCase().includes(sLow))
     );
   }
   list.reverse();
   if (list.length === 0) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999; padding:32px;">신청 내역이 없습니다</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#999; padding:32px;">신청 내역이 없습니다</td></tr>';
     return;
   }
   body.innerHTML = list.map(e => {
     const lab = LABELS[e.type];
     const t = new Date(e.timestamp);
     const tStr = t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    const sourceTag = e.source === 'walkin'
+      ? '<span class="tag" style="background:#e0e0e0; color:#555;">현장</span>'
+      : '<span class="tag" style="background:#dcedc8; color:#33691e;">사전</span>';
     return `<tr>
       <td class="num">${String(e.number).padStart(3, '0')}</td>
       <td><span class="tag ${lab.color}">${lab.short}</span></td>
+      <td>${e.name || '-'}</td>
+      <td>${e.academy || '-'}</td>
       <td>${e.phone || '-'}</td>
+      <td>${sourceTag}</td>
       <td>${tStr}</td>
       <td>
         <div class="row-actions">
@@ -911,11 +1090,12 @@ window.deleteEntry = async function(id, type) {
 // ============================================================
 window.exportCSV = function() {
   if (entries.length === 0) { toast('내보낼 데이터가 없습니다', true); return; }
-  let csv = '﻿번호,구분,띠지,휴대폰,신청시간\n';
+  let csv = '﻿번호,구분,띠지,이름,학원명,휴대폰,출처,신청시간\n';
   entries.forEach(e => {
     const lab = LABELS[e.type];
     const t = new Date(e.timestamp).toLocaleString('ko-KR');
-    csv += `${e.number},${lab.short},${lab.band},"${e.phone||''}","${t}"\n`;
+    const src = e.source === 'walkin' ? '현장' : '사전';
+    csv += `${e.number},${lab.short},${lab.band},"${e.name||''}","${e.academy||''}","${e.phone||''}",${src},"${t}"\n`;
   });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -935,8 +1115,9 @@ window.printLabels = function() {
     const textColor = e.type === 'none' ? '#fff' : '#1a1a1a';
     return `<div class="label" style="background:${colorMap[lab.color]}; color:${textColor};">
       <div class="lnum">${String(e.number).padStart(3, '0')}</div>
+      <div class="lname">${e.name || ''}</div>
+      <div class="lacademy">${e.academy || ''}</div>
       <div class="ltype">${lab.short}</div>
-      <div class="lphone">${e.phone || ''}</div>
     </div>`;
   }).join('');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>명찰 인쇄</title>
@@ -949,9 +1130,10 @@ window.printLabels = function() {
         page-break-inside: avoid; min-height: 35mm;
         display: flex; flex-direction: column; justify-content: center;
       }
-      .lnum { font-size: 48pt; font-weight: 900; line-height: 1; letter-spacing: -2px; font-family: monospace; }
-      .ltype { font-size: 14pt; font-weight: 700; margin-top: 6mm; }
-      .lphone { font-size: 11pt; opacity: 0.7; margin-top: 2mm; }
+      .lnum { font-size: 42pt; font-weight: 900; line-height: 1; letter-spacing: -2px; font-family: monospace; }
+      .lname { font-size: 16pt; font-weight: 800; margin-top: 4mm; }
+      .lacademy { font-size: 11pt; opacity: 0.8; margin-top: 1mm; }
+      .ltype { font-size: 12pt; font-weight: 600; margin-top: 3mm; opacity: 0.7; }
       @media print { .controls { display: none; } }
       .controls { padding: 16px; background: #f5f6f8; text-align: center; }
       .controls button { padding: 12px 24px; font-size: 14px; cursor: pointer; }
@@ -970,8 +1152,9 @@ window.closeResetModal = function() { document.getElementById('reset-modal').cla
 window.confirmReset = async function() {
   await set(ref(db, `${DB_PATH}/counts`), { part1: 0, part2: 0, none: 0 });
   await remove(ref(db, `${DB_PATH}/entries`));
+  await remove(ref(db, `${DB_PATH}/walkins`));
   closeResetModal();
-  toast('초기화되었습니다');
+  toast('초기화되었습니다 (현장신청 명단 포함)');
 };
 
 // ============================================================
