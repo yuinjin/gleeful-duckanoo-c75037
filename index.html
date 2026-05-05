@@ -783,7 +783,8 @@ window.verifyAttendance = async function() {
 async function lookupInSheet(phone) {
   if (!SHEET_API_URL) return null; // 시트 미설정 시 → 모든 사람이 현장신청 처리됨
   const target = normalizePhone(phone);
-  const res = await fetch(SHEET_API_URL, { cache: 'no-store' });
+  const url = SHEET_API_URL + (SHEET_API_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+   const res = await fetch(url);
   if (!res.ok) throw new Error('시트 응답 오류 (' + res.status + ')');
   const data = await res.json();
   if (data && data.error) throw new Error(data.error);
