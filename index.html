@@ -470,12 +470,131 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-8px); }
   .toast.error { background: #d32f2f; }
 
+  /* ========== 태블릿 (≤900px) ========== */
   @media (max-width: 900px) {
     .options { grid-template-columns: 1fr; }
     .option.blue { grid-column: 1; }
     .screen { padding: 24px; }
     .conf-card, .phone-card { padding: 36px 28px; }
     .admin-stats { grid-template-columns: 1fr; }
+  }
+
+  /* ========== 모바일 (≤600px) ========== */
+  @media (max-width: 600px) {
+    /* 헤더 — 컴팩트하게 */
+    .header-band {
+      padding: 12px 16px;
+      gap: 8px;
+      font-size: 14px;
+      flex-wrap: wrap;
+    }
+    .header-band .brand { font-size: 15px; }
+    .header-band .title { font-size: 14px; flex: 1 1 100%; order: 5; margin-top: 4px; }
+    .header-band .divider { display: none; }
+    .header-band .conn { font-size: 11px; padding: 3px 8px; }
+    .header-band .admin-btn { padding: 6px 12px; font-size: 12px; }
+    .header-band .region-tag { font-size: 12px; padding: 4px 10px; }
+
+    .screen { padding: 16px 12px; height: calc(100vh - 80px); }
+    body.admin-active .screen { min-height: calc(100vh - 80px); }
+
+    /* 출석 인증 키오스크 카드 */
+    .kiosk-card { padding: 24px 18px 22px; border-radius: 20px; }
+    .kiosk-card h1 { font-size: 22px; }
+    .kiosk-card .subtitle { font-size: 13px; margin-bottom: 18px; }
+    .phone-display { gap: 6px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+    .phone-prefix-tag { font-size: 22px; }
+    .digit { width: 30px; height: 44px; font-size: 20px; border-radius: 8px; }
+    .digit-group { gap: 4px; }
+    .digit-dash { font-size: 18px; }
+    .numpad { gap: 8px; margin-top: 16px; }
+    .num-btn { padding: 18px 0; font-size: 22px; border-radius: 12px; }
+    .num-btn.back, .num-btn.enter { font-size: 16px; }
+
+    /* 강연 선택 카드 */
+    .selection-header h1 { font-size: 22px; }
+    .selection-header p { font-size: 13px; }
+    .selection-header { margin-bottom: 16px; }
+    .options { gap: 12px; }
+    .option { padding: 22px 20px; border-radius: 18px; }
+    .option h2 { font-size: 22px; }
+    .option .badge { font-size: 12px; padding: 4px 10px; margin-bottom: 12px; }
+    .option .time { font-size: 13px; }
+    .option .seats { padding: 10px 14px; margin-top: 14px; }
+    .option .seats-label { font-size: 13px; }
+    .option .seats-count { font-size: 17px; }
+    .option.blue { padding: 18px 20px; flex-direction: column; align-items: flex-start; }
+    .option.blue h2 { font-size: 18px; }
+    .option.blue p { font-size: 13px; }
+    .option.blue .arrow {
+      position: absolute; top: 18px; right: 18px;
+      width: 40px; height: 40px; font-size: 22px;
+    }
+
+    /* 휴대폰 입력 카드 (옛 phone-screen) */
+    .phone-card { padding: 24px 18px; border-radius: 20px; }
+    .phone-card h1 { font-size: 22px; }
+    .phone-card .subtitle { font-size: 13px; margin-bottom: 18px; }
+    .phone-input { font-size: 22px; padding: 16px; }
+    .text-input { font-size: 16px; padding: 14px 16px; }
+
+    /* 확정 화면 */
+    .conf-card { padding: 28px 20px; border-radius: 20px; }
+    .conf-card h1 { font-size: 22px; }
+    .conf-card .subtitle { font-size: 13px; margin-bottom: 20px; }
+    .conf-checkmark { width: 60px; height: 60px; font-size: 32px; margin-bottom: 16px; }
+    .number-block { padding: 18px; margin-bottom: 18px; border-radius: 14px; }
+    .number-label { font-size: 13px; }
+    .number-value { font-size: 60px; letter-spacing: -1px; }
+    .band-block { padding: 16px 18px; margin-bottom: 18px; border-radius: 14px; gap: 12px; }
+    .band-icon { width: 40px; height: 40px; font-size: 20px; }
+    .band-text .strong { font-size: 17px; }
+    .band-text .desc { font-size: 12px; }
+    .conf-detail { font-size: 13px; padding: 12px 14px; margin-bottom: 18px; }
+    .btn-primary { padding: 14px 28px; font-size: 15px; }
+    .btn-secondary { padding: 14px 22px; font-size: 14px; }
+
+    /* Typeform 화면 */
+    .typeform-wrap { height: calc(100vh - 100px); }
+    .typeform-bar { flex-direction: column; gap: 8px; align-items: stretch; }
+    .typeform-bar h2 { font-size: 16px; }
+    .typeform-bar .actions { justify-content: space-between; }
+
+    /* 관리자 화면 */
+    .admin-header { flex-direction: column; align-items: stretch; gap: 8px; }
+    .admin-header h1 { font-size: 22px; }
+    .admin-tabs { width: 100%; }
+    .admin-tab { flex: 1; font-size: 13px; padding: 8px 12px; }
+    .admin-region-tabs { font-size: 12px; }
+    .admin-region-tab { font-size: 12px; padding: 6px 12px; }
+    .admin-stats { grid-template-columns: 1fr; gap: 10px; }
+    .stat-card { padding: 18px; border-radius: 14px; }
+    .stat-card h3 { font-size: 15px; }
+    .stat-card .stat-big { font-size: 28px; }
+
+    /* 관리자 명단 테이블 — 가로 스크롤 + 폰트 작게 */
+    .admin-panel { padding: 16px; border-radius: 14px; }
+    .toolbar { gap: 6px; }
+    .toolbar input[type="text"] { font-size: 13px; padding: 10px 12px; min-width: 100%; flex: 1 0 100%; }
+    .filter-btn { padding: 8px 10px; font-size: 12px; }
+    .toolbar button.action { padding: 8px 12px; font-size: 12px; }
+    .log-table { font-size: 12px; }
+    .log-table th, .log-table td { padding: 8px 10px; }
+    .row-btn { padding: 5px 8px; font-size: 11px; }
+
+    /* 모달 */
+    .modal { padding: 24px 20px; border-radius: 16px; }
+    .modal h2 { font-size: 18px; }
+    .modal p { font-size: 14px; }
+  }
+
+  /* ========== 작은 모바일 (≤380px) ========== */
+  @media (max-width: 380px) {
+    .digit { width: 26px; height: 38px; font-size: 16px; }
+    .phone-prefix-tag { font-size: 18px; }
+    .num-btn { padding: 16px 0; font-size: 20px; }
+    .number-value { font-size: 48px; }
+    .header-band .title { display: none; }
   }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
