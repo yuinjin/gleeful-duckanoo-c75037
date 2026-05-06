@@ -477,9 +477,14 @@
   <span class="brand">ROUTE26</span>
   <span class="divider"></span>
   <span class="title">2026 학원트렌드에듀페스타</span>
+  <span class="region-tag" id="region-tag" style="background:rgba(255,255,255,0.18); padding:6px 14px; border-radius:99px; font-size:14px; font-weight:700;"></span>
   <span class="conn" id="conn-indicator"><span class="dot"></span>연결됨</span>
   <button class="admin-btn" onclick="openAdminPrompt()">관리자</button>
 </div>
+
+<script>
+  // 헤더에 현재 지역 표시 (config가 로드된 후 module 스크립트에서 채움)
+</script>
 
 <!-- ===== ATTENDANCE CHECK SCREEN (FIRST) ===== -->
 <section id="attendance-screen" class="screen active">
@@ -668,18 +673,19 @@
       <table class="log-table">
         <thead>
           <tr>
-            <th style="width:70px;">번호</th>
-            <th style="width:80px;">구분</th>
-            <th style="width:90px;">이름</th>
+            <th style="width:60px;">번호</th>
+            <th style="width:70px;">구분</th>
+            <th style="width:80px;">이름</th>
             <th>학원명</th>
-            <th style="width:130px;">휴대폰</th>
-            <th style="width:70px;">출처</th>
+            <th style="width:120px;">휴대폰</th>
+            <th style="width:90px;">신청지역</th>
+            <th style="width:60px;">출처</th>
             <th style="width:80px;">시간</th>
             <th style="width:90px;">관리</th>
           </tr>
         </thead>
         <tbody id="log-body">
-          <tr><td colspan="8" style="text-align:center; color:#999; padding:32px;">데이터 로딩 중…</td></tr>
+          <tr><td colspan="9" style="text-align:center; color:#999; padding:32px;">데이터 로딩 중…</td></tr>
         </tbody>
       </table>
     </div>
@@ -747,23 +753,38 @@ const FIREBASE_CONFIG = {
   appId: "1:195739739069:web:d6500fe438827f440f28d4"
 };
 
-// 데이터 저장 경로 (행사가 여러 개라면 이름을 바꿔 분리 가능)
-const DB_PATH = 'route26_2026';
+// ⚙️ 지역 설정 — 행사 전 변경하거나 URL ?region=daegu 로 지정
+// daegu(대구) / magok(마곡) / suwon(수원)
+const URL_REGION = new URLSearchParams(window.location.search).get('region');
+const CURRENT_REGION = URL_REGION || 'daegu';
+
+const REGIONS = {
+  daegu: { label: '대구', date: '5/12 (화)', location: '대구 엑스코',  capacity: 144 },
+  magok: { label: '마곡', date: '5/14 (목)', location: '마곡 코엑스',  capacity: 135 },
+  suwon: { label: '수원', date: '5/18 (일)', location: '수원 컨벤션',  capacity: 168 }
+};
+const REGION_INFO = REGIONS[CURRENT_REGION] || REGIONS.daegu;
+
+// 지역별로 데이터 분리 (route26_2026_daegu / _magok / _suwon)
+const DB_PATH = 'route26_2026_' + CURRENT_REGION;
 
 // 관리자 비밀번호 (꼭 변경하세요)
 const ADMIN_PW = '2026';
 
 // Google Apps Script Web App URL (사전신청자 명단 조회용)
-// 배포 가이드: SHEET_GUIDE.md 참고
-// 비워두면 모든 참가자가 현장신청으로 처리됩니다
 const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwdjtHjorccWYoqD1-u98Ef5LCVi0hrt1U5ms7qLTr-xSfTxJC1daF2WR6ny1_b0JfZ/exec';
 
-// 옵션별 정원 / 번호 범위
-const CAPACITY = { part1: 150, part2: 150, none: 300 };
+// 띠지 번호 범위 — 지역과 무관하게 고정 (실제 띠지에 인쇄된 번호 그대로)
 const NUMBER_RANGE = {
-  part1: { start: 1,   end: 150 },
-  part2: { start: 151, end: 300 },
-  none:  { start: 301, end: 600 }
+  part1: { start: 1,   end: 150 },   // 강연 1부 띠지
+  part2: { start: 151, end: 300 },   // 강연 2부 띠지
+  none:  { start: 301, end: 600 }    // 미참여 띠지
+};
+// 옵션별 정원 — 지역별 강연존 좌석 수, 단 띠지 범위를 넘지 않음
+const CAPACITY = {
+  part1: Math.min(REGION_INFO.capacity, 150),
+  part2: Math.min(REGION_INFO.capacity, 150),
+  none:  300
 };
 
 // 옵션별 라벨/문구 (모든 화면에 사용됨)
@@ -932,6 +953,23 @@ window.verifyAttendance = async function() {
   document.getElementById('att-error').textContent = '';
 
   try {
+    // 0) 중복 신청 체크 — 이미 신청한 사람이면 기존 번호 안내 후 종료
+    const existing = await findExistingEntry(phone);
+    if (existing) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '다음';
+      currentAttendee = {
+        phone,
+        name: existing.name || '참가자',
+        academy: existing.academy || '',
+        registeredRegion: existing.registeredRegion || '',
+        source: existing.source || 'preregistered'
+      };
+      showConfirmation(existing.type, existing.number, true);
+      return;
+    }
+
+    // 1) 사전신청 시트 조회
     const sheetMatch = await lookupInSheet(phone);
 
     submitBtn.disabled = false;
@@ -942,11 +980,11 @@ window.verifyAttendance = async function() {
         phone,
         name: sheetMatch.name || '참가자',
         academy: sheetMatch.academy || '',
+        registeredRegion: sheetMatch.region || '',
         source: 'preregistered'
       };
       proceedToSelection();
     } else {
-      // 미등록 → Typeform 현장신청서로 이동
       showTypeform(phone);
     }
   } catch (e) {
@@ -955,6 +993,22 @@ window.verifyAttendance = async function() {
     document.getElementById('att-error').textContent = '명단 조회 실패: ' + (e.message || '네트워크 오류');
   }
 };
+
+// 같은 휴대폰 번호로 이미 신청된 entry 찾기
+async function findExistingEntry(phone) {
+  const target = normalizePhone(phone);
+  try {
+    const snap = await get(ref(db, `${DB_PATH}/entries`));
+    const data = snap.val() || {};
+    for (const key in data) {
+      const e = data[key];
+      if (normalizePhone(e.phone) === target) {
+        return { id: key, ...e };
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
 
 function showTypeform(phone) {
   const params = new URLSearchParams({
@@ -984,28 +1038,33 @@ window.proceedFromTypeform = function() {
     phone: pendingPhone,
     name: '현장신청자',
     academy: '',
+    registeredRegion: CURRENT_REGION, // 현장신청자는 현재 지역에 신청한 것
     source: 'walkin'
   };
   proceedToSelection();
 };
 
 async function lookupInSheet(phone) {
-  if (!SHEET_API_URL) return null; // 시트 미설정 시 → 모든 사람이 현장신청 처리됨
+  if (!SHEET_API_URL) return null;
   const target = normalizePhone(phone);
-  // 쿼리 파라미터로 캐시 우회 (cache 옵션 사용 시 Apps Script CORS 문제 발생)
   const url = SHEET_API_URL + (SHEET_API_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
   const res = await fetch(url);
   if (!res.ok) throw new Error('시트 응답 오류 (' + res.status + ')');
   const data = await res.json();
   if (data && data.error) throw new Error(data.error);
   if (!Array.isArray(data)) throw new Error('시트 응답 형식 오류');
-  // Apps Script가 이미 phone을 정규화해서 보내줌
-  for (const row of data) {
-    if (normalizePhone(row.phone) === target) {
-      return { name: row.name || '', academy: row.academy || '' };
-    }
-  }
-  return null;
+
+  // 같은 전화번호가 여러 행에 있을 수 있음 (여러 지역 신청 시)
+  // → 현재 행사 지역에 신청한 행을 우선 매칭
+  const matches = data.filter(row => normalizePhone(row.phone) === target);
+  if (matches.length === 0) return null;
+  const cur = matches.find(m => m.region === CURRENT_REGION);
+  const pick = cur || matches[0];
+  return {
+    name:    pick.name || '',
+    academy: pick.academy || '',
+    region:  pick.region || ''
+  };
 }
 
 async function lookupInWalkins(phone) {
@@ -1024,9 +1083,14 @@ async function lookupInWalkins(phone) {
 }
 
 function proceedToSelection() {
-  const greeting = currentAttendee.source === 'preregistered'
+  let greeting = currentAttendee.source === 'preregistered'
     ? `${currentAttendee.name}님, 환영합니다`
     : `${currentAttendee.name}님 (현장신청)`;
+  // 신청한 지역과 실제 지역이 다른 경우 안내 추가
+  const regReg = currentAttendee.registeredRegion;
+  if (regReg && regReg !== CURRENT_REGION && REGIONS[regReg]) {
+    greeting += ` · ${REGIONS[regReg].label}에서 신청하셨군요!`;
+  }
   document.getElementById('selection-title').textContent = `${greeting} · 강연을 선택해 주세요`;
   showScreen('selection-screen');
 }
@@ -1052,6 +1116,14 @@ window.onChoose = async function(type) {
 async function submitEntry() {
   if (!currentAttendee || !currentChoice) return;
   try {
+    // 0) 중복 방지 — 강연 선택 직전 한 번 더 체크
+    const existing = await findExistingEntry(currentAttendee.phone);
+    if (existing) {
+      document.querySelectorAll('.option').forEach(b => b.disabled = false);
+      toast(`이미 신청하셨습니다 (${String(existing.number).padStart(3,'0')}번)`, true);
+      showConfirmation(existing.type, existing.number, true);
+      return;
+    }
     // 1) 카운트 원자적 증가
     const countRef = ref(db, `${DB_PATH}/counts/${currentChoice}`);
     const tx = await runTransaction(countRef, current => {
@@ -1065,7 +1137,7 @@ async function submitEntry() {
     const seq = tx.snapshot.val();
     const number = NUMBER_RANGE[currentChoice].start + seq - 1;
 
-    // 2) 엔트리 기록 (참가자 정보 포함)
+    // 2) 엔트리 기록 (참가자 정보 + 신청지역/실제지역 포함)
     const entryRef = push(ref(db, `${DB_PATH}/entries`));
     await set(entryRef, {
       type: currentChoice,
@@ -1073,6 +1145,8 @@ async function submitEntry() {
       phone: currentAttendee.phone,
       name: currentAttendee.name,
       academy: currentAttendee.academy || '',
+      registeredRegion: currentAttendee.registeredRegion || '', // 시트의 신청지역
+      actualRegion: CURRENT_REGION,                              // 실제 참석한 지역
       source: currentAttendee.source,
       timestamp: Date.now()
     });
@@ -1084,15 +1158,20 @@ async function submitEntry() {
   }
 }
 
-function showConfirmation(type, number) {
+function showConfirmation(type, number, alreadyRegistered = false) {
   const lab = LABELS[type];
-  document.getElementById('conf-title').textContent = lab.title;
-  document.getElementById('conf-subtitle').textContent =
-    `${currentAttendee.name}님 · ${lab.sub}`;
+  document.getElementById('conf-title').textContent = alreadyRegistered
+    ? '이미 신청하셨습니다'
+    : lab.title;
+  document.getElementById('conf-subtitle').textContent = alreadyRegistered
+    ? `${currentAttendee.name}님은 이미 ${lab.short}에 신청되어 있어요`
+    : `${currentAttendee.name}님 · ${lab.sub}`;
   document.getElementById('conf-number').textContent = String(number).padStart(3, '0');
   document.getElementById('conf-band-name').textContent = lab.band;
   document.getElementById('conf-band').className = `band-block ${lab.color}`;
-  document.getElementById('conf-detail').innerHTML = lab.detail;
+  document.getElementById('conf-detail').innerHTML = alreadyRegistered
+    ? '<strong>📍 안내</strong><br>이전에 받으신 번호로 입장해 주세요.<br>띠지를 잃어버리셨다면 스태프에게 문의 부탁드려요.'
+    : lab.detail;
   showScreen('confirmation-screen');
   startCountdown(AUTO_RETURN_SEC);
 }
@@ -1225,7 +1304,7 @@ window.renderEntries = function() {
   }
   list.reverse();
   if (list.length === 0) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#999; padding:32px;">신청 내역이 없습니다</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#999; padding:32px;">신청 내역이 없습니다</td></tr>';
     return;
   }
   body.innerHTML = list.map(e => {
@@ -1235,12 +1314,20 @@ window.renderEntries = function() {
     const sourceTag = e.source === 'walkin'
       ? '<span class="tag" style="background:#e0e0e0; color:#555;">현장</span>'
       : '<span class="tag" style="background:#dcedc8; color:#33691e;">사전</span>';
+    // 신청지역 표시 — 실제와 다르면 빨간색으로 강조
+    const regKey = e.registeredRegion;
+    const regLabel = regKey && REGIONS[regKey] ? REGIONS[regKey].label : '-';
+    const isMismatch = regKey && regKey !== CURRENT_REGION;
+    const regCell = isMismatch
+      ? `<span style="color:#d32f2f; font-weight:700;">${regLabel} ⚠️</span>`
+      : `<span style="color:#666;">${regLabel}</span>`;
     return `<tr>
       <td class="num">${String(e.number).padStart(3, '0')}</td>
       <td><span class="tag ${lab.color}">${lab.short}</span></td>
       <td>${e.name || '-'}</td>
       <td>${e.academy || '-'}</td>
       <td>${e.phone || '-'}</td>
+      <td>${regCell}</td>
       <td>${sourceTag}</td>
       <td>${tStr}</td>
       <td>
@@ -1275,18 +1362,20 @@ window.deleteEntry = async function(id, type) {
 // ============================================================
 window.exportCSV = function() {
   if (entries.length === 0) { toast('내보낼 데이터가 없습니다', true); return; }
-  let csv = '﻿번호,구분,띠지,이름,학원명,휴대폰,출처,신청시간\n';
+  let csv = '﻿번호,구분,띠지,이름,학원명,휴대폰,신청지역,실제지역,출처,신청시간\n';
   entries.forEach(e => {
     const lab = LABELS[e.type];
     const t = new Date(e.timestamp).toLocaleString('ko-KR');
     const src = e.source === 'walkin' ? '현장' : '사전';
-    csv += `${e.number},${lab.short},${lab.band},"${e.name||''}","${e.academy||''}","${e.phone||''}",${src},"${t}"\n`;
+    const regL = (e.registeredRegion && REGIONS[e.registeredRegion]) ? REGIONS[e.registeredRegion].label : '';
+    const actL = (e.actualRegion && REGIONS[e.actualRegion]) ? REGIONS[e.actualRegion].label : REGION_INFO.label;
+    csv += `${e.number},${lab.short},${lab.band},"${e.name||''}","${e.academy||''}","${e.phone||''}",${regL},${actL},${src},"${t}"\n`;
   });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `route26_신청내역_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `route26_${REGION_INFO.label}_신청내역_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 };
@@ -1415,6 +1504,13 @@ document.addEventListener('keydown', e => {
     document.getElementById('reset-modal').classList.remove('active');
   }
 });
+
+// 헤더에 현재 지역 태그 표시
+const regionTagEl = document.getElementById('region-tag');
+if (regionTagEl) {
+  regionTagEl.textContent = `${REGION_INFO.label} · ${REGION_INFO.date}`;
+}
+document.title = `2026 학원트렌드에듀페스타 — ${REGION_INFO.label}`;
 
 // 자동 정원 표시 초기화
 updateCountsUI();
