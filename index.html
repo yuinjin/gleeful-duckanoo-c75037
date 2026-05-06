@@ -356,6 +356,20 @@
   }
   .admin-tab.active { background: #0B4DA2; color: #fff; }
 
+  .admin-region-tab {
+    padding: 8px 16px; border-radius: 8px;
+    border: 1.5px solid #e0e0e0;
+    background: #fff; font-weight: 600; font-size: 13px;
+    cursor: pointer; font-family: inherit; color: #555;
+  }
+  .admin-region-tab.active {
+    background: #FFD60A; color: #1a1a1a;
+    border-color: #FFD60A;
+  }
+  .admin-region-tab[data-region="all"].active {
+    background: #0B4DA2; color: #fff; border-color: #0B4DA2;
+  }
+
   .admin-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
   .stat-card { border-radius: 20px; padding: 24px; color: #1a1a1a; }
   .stat-card.yellow { background: #FFD60A; }
@@ -620,6 +634,14 @@
       <button class="admin-tab" data-panel="entries" onclick="switchPanel('entries')">참가자 명단</button>
     </div>
     <button class="btn-secondary" onclick="exitAdmin()">접수 화면으로</button>
+  </div>
+
+  <div class="admin-region-tabs" style="display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;">
+    <span style="font-size:13px; color:#666; align-self:center; margin-right:8px;">지역:</span>
+    <button class="admin-region-tab" data-region="daegu" onclick="setAdminRegion('daegu')">대구 (5/12)</button>
+    <button class="admin-region-tab" data-region="magok" onclick="setAdminRegion('magok')">마곡 (5/14)</button>
+    <button class="admin-region-tab" data-region="suwon" onclick="setAdminRegion('suwon')">수원 (5/18)</button>
+    <button class="admin-region-tab" data-region="all" onclick="setAdminRegion('all')">전체 통합</button>
   </div>
 
   <div class="admin-stats">
@@ -1203,25 +1225,83 @@ onValue(ref(db, '.info/connected'), snap => {
   }
 });
 
-onValue(ref(db, `${DB_PATH}/counts`), snap => {
-  const v = snap.val() || {};
-  counts.part1 = v.part1 || 0;
-  counts.part2 = v.part2 || 0;
-  counts.none = v.none || 0;
-  updateCountsUI();
+// ============================================================
+// 모든 지역 데이터 모니터링 (관리자에서 통합 조회 가능)
+// ============================================================
+const ALL_REGIONS = ['daegu', 'magok', 'suwon'];
+const regionsCache = {
+  daegu: { counts: { part1: 0, part2: 0, none: 0 }, entries: [] },
+  magok: { counts: { part1: 0, part2: 0, none: 0 }, entries: [] },
+  suwon: { counts: { part1: 0, part2: 0, none: 0 }, entries: [] }
+};
+let adminViewRegion = CURRENT_REGION; // 'daegu' | 'magok' | 'suwon' | 'all'
+
+ALL_REGIONS.forEach(region => {
+  const path = 'route26_2026_' + region;
+  onValue(ref(db, `${path}/counts`), snap => {
+    const v = snap.val() || {};
+    regionsCache[region].counts = {
+      part1: v.part1 || 0,
+      part2: v.part2 || 0,
+      none: v.none || 0
+    };
+    if (region === CURRENT_REGION) {
+      // 키오스크 화면용 — 항상 현재 URL 지역 카운트
+      counts = regionsCache[region].counts;
+    }
+    updateCountsUI();
+  });
+  onValue(ref(db, `${path}/entries`), snap => {
+    const v = snap.val() || {};
+    regionsCache[region].entries = Object.entries(v)
+      .map(([id, e]) => ({ id, region, ...e }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    if (region === CURRENT_REGION) {
+      entries = regionsCache[region].entries;
+    }
+    if (document.body.classList.contains('admin-active')) {
+      renderEntries();
+      renderChart();
+    }
+  });
 });
 
-onValue(ref(db, `${DB_PATH}/entries`), snap => {
-  const v = snap.val() || {};
-  entries = Object.entries(v).map(([id, e]) => ({ id, ...e }))
-    .sort((a, b) => a.timestamp - b.timestamp);
-  if (document.body.classList.contains('admin-active')) {
-    renderEntries();
-    renderChart();
+// 관리자가 보고 있는 지역의 entries 반환
+function getViewedEntries() {
+  if (adminViewRegion === 'all') {
+    return ALL_REGIONS.flatMap(r => regionsCache[r].entries);
   }
-});
+  return regionsCache[adminViewRegion]?.entries || [];
+}
+// 관리자가 보고 있는 지역의 counts 반환
+function getViewedCounts() {
+  if (adminViewRegion === 'all') {
+    const sum = { part1: 0, part2: 0, none: 0 };
+    ALL_REGIONS.forEach(r => {
+      const c = regionsCache[r].counts;
+      sum.part1 += c.part1;
+      sum.part2 += c.part2;
+      sum.none += c.none;
+    });
+    return sum;
+  }
+  return regionsCache[adminViewRegion]?.counts || { part1: 0, part2: 0, none: 0 };
+}
+// 관리자가 보고 있는 지역의 정원
+function getViewedCapacity() {
+  if (adminViewRegion === 'all') {
+    return {
+      part1: ALL_REGIONS.reduce((s, r) => s + Math.min(REGIONS[r].capacity, 150), 0),
+      part2: ALL_REGIONS.reduce((s, r) => s + Math.min(REGIONS[r].capacity, 150), 0),
+      none: ALL_REGIONS.length * 300
+    };
+  }
+  const cap = Math.min(REGIONS[adminViewRegion]?.capacity || 150, 150);
+  return { part1: cap, part2: cap, none: 300 };
+}
 
 function updateCountsUI() {
+  // 키오스크 카드 — 항상 현재 URL 지역의 카운트 사용
   ['part1', 'part2'].forEach(type => {
     const remaining = CAPACITY[type] - counts[type];
     const el = document.getElementById(`${type}-count`);
@@ -1238,18 +1318,36 @@ function updateCountsUI() {
       if (banner) banner.style.display = isFull ? 'block' : 'none';
     }
   });
+  // 관리자 통계 카드 — 선택된 지역의 카운트 사용
+  const viewedCounts = getViewedCounts();
+  const viewedCap = getViewedCapacity();
   ['part1', 'part2', 'none'].forEach(type => {
-    const used = counts[type];
+    const used = viewedCounts[type] || 0;
+    const cap = viewedCap[type];
     const cEl = document.getElementById(`admin-${type}-count`);
     const capEl = document.getElementById(`admin-${type}-cap`);
     const endEl = document.getElementById(`admin-${type}-end`);
     const bar = document.getElementById(`admin-${type}-bar`);
     if (cEl) cEl.textContent = used;
-    if (capEl) capEl.textContent = CAPACITY[type];
-    if (endEl) endEl.textContent = NUMBER_RANGE[type].end;
-    if (bar) bar.style.width = `${(used / CAPACITY[type]) * 100}%`;
+    if (capEl) capEl.textContent = cap;
+    if (endEl) {
+      endEl.textContent = adminViewRegion === 'all'
+        ? '—'
+        : NUMBER_RANGE[type].end;
+    }
+    if (bar) bar.style.width = `${cap ? (used / cap) * 100 : 0}%`;
   });
 }
+
+window.setAdminRegion = function(region) {
+  adminViewRegion = region;
+  document.querySelectorAll('.admin-region-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.region === region);
+  });
+  updateCountsUI();
+  renderEntries();
+  renderChart();
+};
 
 // ============================================================
 // 관리자 화면
@@ -1267,6 +1365,11 @@ window.verifyAdmin = function() {
     closeAdminPrompt();
     document.body.classList.add('admin-active');
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    // 관리자 지역 탭 — 현재 URL 지역으로 초기화
+    document.querySelectorAll('.admin-region-tab').forEach(b => {
+      b.classList.toggle('active', b.dataset.region === adminViewRegion);
+    });
+    updateCountsUI();
     renderEntries();
     renderChart();
   } else {
@@ -1290,7 +1393,7 @@ window.setFilter = function(f) {
 window.renderEntries = function() {
   const search = document.getElementById('search-input').value.trim();
   const body = document.getElementById('log-body');
-  let list = entries.slice();
+  let list = getViewedEntries();
   if (currentFilter !== 'all') list = list.filter(e => e.type === currentFilter);
   if (search) {
     const q = search.replace(/\D/g, '');
@@ -1302,7 +1405,7 @@ window.renderEntries = function() {
       (e.academy && e.academy.toLowerCase().includes(sLow))
     );
   }
-  list.reverse();
+  list = list.slice().sort((a, b) => b.timestamp - a.timestamp); // 최신순
   if (list.length === 0) {
     body.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#999; padding:32px;">신청 내역이 없습니다</td></tr>';
     return;
@@ -1314,15 +1417,21 @@ window.renderEntries = function() {
     const sourceTag = e.source === 'walkin'
       ? '<span class="tag" style="background:#e0e0e0; color:#555;">현장</span>'
       : '<span class="tag" style="background:#dcedc8; color:#33691e;">사전</span>';
-    // 신청지역 표시 — 실제와 다르면 빨간색으로 강조
+    // 신청지역 표시 — 실제 참석지역과 다르면 강조
     const regKey = e.registeredRegion;
+    const actKey = e.actualRegion || e.region; // entry의 실제 지역
     const regLabel = regKey && REGIONS[regKey] ? REGIONS[regKey].label : '-';
-    const isMismatch = regKey && regKey !== CURRENT_REGION;
+    const actLabel = actKey && REGIONS[actKey] ? REGIONS[actKey].label : '';
+    const isMismatch = regKey && actKey && regKey !== actKey;
     const regCell = isMismatch
       ? `<span style="color:#d32f2f; font-weight:700;">${regLabel} ⚠️</span>`
       : `<span style="color:#666;">${regLabel}</span>`;
+    // 통합 보기에서는 실제 지역도 표시
+    const numCell = adminViewRegion === 'all' && actLabel
+      ? `<td class="num">${String(e.number).padStart(3, '0')}<br><span style="font-size:11px; color:#888; font-weight:500;">${actLabel}</span></td>`
+      : `<td class="num">${String(e.number).padStart(3, '0')}</td>`;
     return `<tr>
-      <td class="num">${String(e.number).padStart(3, '0')}</td>
+      ${numCell}
       <td><span class="tag ${lab.color}">${lab.short}</span></td>
       <td>${e.name || '-'}</td>
       <td>${e.academy || '-'}</td>
@@ -1332,28 +1441,28 @@ window.renderEntries = function() {
       <td>${tStr}</td>
       <td>
         <div class="row-actions">
-          <button class="row-btn" onclick="editEntry('${e.id}')">수정</button>
-          <button class="row-btn danger" onclick="deleteEntry('${e.id}','${e.type}')">삭제</button>
+          <button class="row-btn" onclick="editEntry('${e.id}','${e.region || actKey}')">수정</button>
+          <button class="row-btn danger" onclick="deleteEntry('${e.id}','${e.type}','${e.region || actKey}')">삭제</button>
         </div>
       </td>
     </tr>`;
   }).join('');
 };
-window.editEntry = async function(id) {
-  const entry = entries.find(e => e.id === id);
+window.editEntry = async function(id, region) {
+  region = region || CURRENT_REGION;
+  const entry = (regionsCache[region]?.entries || []).find(e => e.id === id);
   if (!entry) return;
   const newPhone = prompt('새 휴대폰 번호:', entry.phone || '');
   if (newPhone === null) return;
   const err = validatePhone(newPhone);
   if (err) { toast(err, true); return; }
-  await update(ref(db, `${DB_PATH}/entries/${id}`), { phone: newPhone.trim() });
+  await update(ref(db, `route26_2026_${region}/entries/${id}`), { phone: newPhone.trim() });
   toast('수정되었습니다');
 };
-window.deleteEntry = async function(id, type) {
+window.deleteEntry = async function(id, type, region) {
+  region = region || CURRENT_REGION;
   if (!confirm('정말 이 신청을 삭제하시겠습니까?\n(번호는 재할당되지 않습니다)')) return;
-  await remove(ref(db, `${DB_PATH}/entries/${id}`));
-  // 카운트는 유지 (번호 재사용 방지). 필요 시 아래 줄을 활성화하면 카운트도 차감됨.
-  // await runTransaction(ref(db, `${DB_PATH}/counts/${type}`), c => Math.max(0, (c || 0) - 1));
+  await remove(ref(db, `route26_2026_${region}/entries/${id}`));
   toast('삭제되었습니다');
 };
 
@@ -1361,29 +1470,33 @@ window.deleteEntry = async function(id, type) {
 // 내보내기 / 인쇄
 // ============================================================
 window.exportCSV = function() {
-  if (entries.length === 0) { toast('내보낼 데이터가 없습니다', true); return; }
+  const exportEntries = getViewedEntries();
+  if (exportEntries.length === 0) { toast('내보낼 데이터가 없습니다', true); return; }
   let csv = '﻿번호,구분,띠지,이름,학원명,휴대폰,신청지역,실제지역,출처,신청시간\n';
-  entries.forEach(e => {
+  exportEntries.forEach(e => {
     const lab = LABELS[e.type];
     const t = new Date(e.timestamp).toLocaleString('ko-KR');
     const src = e.source === 'walkin' ? '현장' : '사전';
     const regL = (e.registeredRegion && REGIONS[e.registeredRegion]) ? REGIONS[e.registeredRegion].label : '';
-    const actL = (e.actualRegion && REGIONS[e.actualRegion]) ? REGIONS[e.actualRegion].label : REGION_INFO.label;
+    const actKey = e.actualRegion || e.region;
+    const actL = (actKey && REGIONS[actKey]) ? REGIONS[actKey].label : '';
     csv += `${e.number},${lab.short},${lab.band},"${e.name||''}","${e.academy||''}","${e.phone||''}",${regL},${actL},${src},"${t}"\n`;
   });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `route26_${REGION_INFO.label}_신청내역_${new Date().toISOString().slice(0,10)}.csv`;
+  const tag = adminViewRegion === 'all' ? '전체' : (REGIONS[adminViewRegion]?.label || REGION_INFO.label);
+  a.download = `route26_${tag}_신청내역_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 };
 
 window.printLabels = function() {
-  if (entries.length === 0) { toast('인쇄할 데이터가 없습니다', true); return; }
+  const printEntries = getViewedEntries();
+  if (printEntries.length === 0) { toast('인쇄할 데이터가 없습니다', true); return; }
   const w = window.open('', '_blank');
-  const cards = entries.map(e => {
+  const cards = printEntries.map(e => {
     const lab = LABELS[e.type];
     const colorMap = { yellow: '#FFD60A', green: '#7DCAB0', blue: '#0B4DA2' };
     const textColor = e.type === 'none' ? '#fff' : '#1a1a1a';
@@ -1414,31 +1527,41 @@ window.printLabels = function() {
     </style></head><body>
     <div class="controls">
       <button onclick="window.print()">🖨️ 인쇄</button>
-      <span style="margin-left:16px; color:#666;">A4 한 페이지에 8장씩 출력됩니다 (총 ${entries.length}장)</span>
+      <span style="margin-left:16px; color:#666;">A4 한 페이지에 8장씩 출력됩니다 (총 ${printEntries.length}장)</span>
     </div>
     <div class="grid">${cards}</div>
   </body></html>`);
   w.document.close();
 };
 
+// 초기화는 현재 보고 있는 지역(들)에 적용
+function targetRegionsForReset() {
+  return adminViewRegion === 'all' ? ALL_REGIONS : [adminViewRegion];
+}
+
 window.resetAll = function() { document.getElementById('reset-modal').classList.add('active'); };
 window.closeResetModal = function() { document.getElementById('reset-modal').classList.remove('active'); };
 window.confirmReset = async function() {
-  await set(ref(db, `${DB_PATH}/counts`), { part1: 0, part2: 0, none: 0 });
-  await remove(ref(db, `${DB_PATH}/entries`));
-  await remove(ref(db, `${DB_PATH}/walkins`));
+  const targets = targetRegionsForReset();
+  for (const r of targets) {
+    await set(ref(db, `route26_2026_${r}/counts`), { part1: 0, part2: 0, none: 0 });
+    await remove(ref(db, `route26_2026_${r}/entries`));
+    await remove(ref(db, `route26_2026_${r}/walkins`));
+  }
   closeResetModal();
-  toast('전체 초기화되었습니다');
+  toast(`${targets.length}개 지역 전체 초기화 완료`);
 };
 
-// 강연 신청만 초기화 (참가자 명단 유지)
 window.resetLectures = function() { document.getElementById('reset-lectures-modal').classList.add('active'); };
 window.closeResetLecturesModal = function() { document.getElementById('reset-lectures-modal').classList.remove('active'); };
 window.confirmResetLectures = async function() {
-  await set(ref(db, `${DB_PATH}/counts`), { part1: 0, part2: 0, none: 0 });
-  await remove(ref(db, `${DB_PATH}/entries`));
+  const targets = targetRegionsForReset();
+  for (const r of targets) {
+    await set(ref(db, `route26_2026_${r}/counts`), { part1: 0, part2: 0, none: 0 });
+    await remove(ref(db, `route26_2026_${r}/entries`));
+  }
   closeResetLecturesModal();
-  toast('강연 신청이 초기화되었습니다 (참가자 명단은 유지)');
+  toast(`${targets.length}개 지역 강연 신청 초기화 완료 (참가자 명단 유지)`);
 };
 
 // ============================================================
@@ -1448,15 +1571,16 @@ function renderChart() {
   const canvas = document.getElementById('timelineChart');
   if (!canvas) return;
 
+  const chartEntries = getViewedEntries();
   // 5분 단위 버킷
-  if (entries.length === 0) {
+  if (chartEntries.length === 0) {
     if (chart) { chart.destroy(); chart = null; }
     canvas.parentElement.innerHTML = '<canvas id="timelineChart"></canvas><p style="text-align:center; color:#999; margin-top:24px;">접수 내역이 쌓이면 그래프가 표시됩니다</p>';
     return;
   }
 
   const buckets = {};
-  entries.forEach(e => {
+  chartEntries.forEach(e => {
     const t = new Date(e.timestamp);
     const k = `${String(t.getHours()).padStart(2,'0')}:${String(Math.floor(t.getMinutes()/5)*5).padStart(2,'0')}`;
     if (!buckets[k]) buckets[k] = { part1: 0, part2: 0, none: 0 };
